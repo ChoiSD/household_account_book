@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Household Account</string>
+    <string name="put_button">Put Transaction</string>
+    <string name="docs_name_hint">Spreadsheet\'s name</string>
+    <string name="docs_url_hint">Paste your spreadsheet\'s URL here</string>
+    <string name="docs_add">Add</string>
+    <string name="cancel">Cancel</string>
+</resources>
