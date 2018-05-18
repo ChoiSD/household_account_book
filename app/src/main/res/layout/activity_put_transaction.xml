@@ -8,6 +8,7 @@
     tools:context=".PutTransaction">
 
     <LinearLayout
+        android:id="@+id/linearLayout"
         android:layout_width="395dp"
         android:layout_height="626dp"
         android:layout_marginEnd="8dp"

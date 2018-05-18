@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.ConnectivityManager
 import android.os.AsyncTask
 import android.os.Bundle
+import android.support.design.widget.Snackbar
 import android.support.v7.app.AppCompatActivity
 import android.view.View
 import android.widget.ArrayAdapter
@@ -240,6 +241,7 @@ class PutTransaction: AppCompatActivity() {
                 descText.text = null
                 detailDescText.text = null
                 progressBar.visibility = View.GONE
+                Snackbar.make(linearLayout, "item added", Snackbar.LENGTH_LONG).show()
             }
         }
 
