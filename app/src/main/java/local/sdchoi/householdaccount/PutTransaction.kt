@@ -8,6 +8,8 @@ import android.os.AsyncTask
 import android.os.Bundle
 import android.support.design.widget.Snackbar
 import android.support.v7.app.AppCompatActivity
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.TextView
@@ -54,6 +56,27 @@ class PutTransaction: AppCompatActivity() {
         SPREADSHEET_ID = intent.getSerializableExtra(MainActivity.PREF_SPREADSHEET_ID) as String
 
         prepareSpinner()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        val inflater = menuInflater
+        inflater.inflate(R.menu.menu_put_transaction, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem?): Boolean {
+        if (item != null) {
+            when (item.itemId) {
+                R.id.breakdown -> {
+                    // Switch to ListBreakdown activity
+                   var listIntent = Intent(this, ListBreakdown::class.java)
+                    listIntent.putExtra(MainActivity.PREF_SPREADSHEET_ID, SPREADSHEET_ID)
+                    startActivity(listIntent)
+                }
+            }
+        }
+
+        return super.onOptionsItemSelected(item)
     }
 
     /**

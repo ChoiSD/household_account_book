@@ -23,6 +23,9 @@
             android:name=".PutTransaction"
             android:parentActivityName=".MainActivity"
             android:windowSoftInputMode="adjustResize"/>
+        <activity
+            android:name=".ListBreakdown"
+            android:parentActivityName=".PutTransaction"/>
     </application>
 
 </manifest>

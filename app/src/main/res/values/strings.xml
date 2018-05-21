@@ -5,4 +5,11 @@
     <string name="docs_url_hint">Paste your spreadsheet\'s URL here</string>
     <string name="docs_add">Add</string>
     <string name="cancel">Cancel</string>
+    <string name="show_breakdown">내역보기</string>
+    <string name="table_date">날짜</string>
+    <string name="table_type">항목</string>
+    <string name="table_form">형태</string>
+    <string name="table_amount">금액</string>
+    <string name="table_desc">내역</string>
+    <string name="table_detail_desc">설명</string>
 </resources>
