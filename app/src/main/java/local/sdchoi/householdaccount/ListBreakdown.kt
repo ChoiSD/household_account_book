@@ -3,9 +3,12 @@ package local.sdchoi.householdaccount
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.graphics.Typeface
 import android.os.AsyncTask
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams
 import android.widget.TableRow
@@ -21,6 +24,10 @@ import com.google.api.client.util.ExponentialBackOff
 import com.google.api.services.sheets.v4.Sheets
 import com.google.api.services.sheets.v4.SheetsScopes
 import kotlinx.android.synthetic.main.activity_list_breakdown.*
+import local.sdchoi.householdaccount.R.id.*
+import local.sdchoi.householdaccount.tool.OnSwipeTouchListener
+import java.io.Serializable
+import java.lang.reflect.Type
 import java.time.LocalDate
 import java.util.*
 import kotlin.collections.ArrayList
@@ -29,7 +36,7 @@ class ListBreakdown: AppCompatActivity() {
     lateinit var mCredential: GoogleAccountCredential
     lateinit var SPREADSHEET_ID: String
 
-    val month = LocalDate.now().monthValue.toString()
+    lateinit var month: String
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,14 +51,75 @@ class ListBreakdown: AppCompatActivity() {
                 )
 
         // Get Spreadsheet ID
-        SPREADSHEET_ID = intent.getSerializableExtra(MainActivity.PREF_SPREADSHEET_ID) as String
+        SPREADSHEET_ID = intent.getSerializableExtra(MainActivity.INTENT_SPREADSHEET_ID) as String
 
-        itemTitle.text = month + "월"
+        month = LocalDate.now().monthValue.toString()
 
-        progressBar.visibility = View.VISIBLE
+        GetItem().execute()
 
-        GetItem().execute(month)
+        itemTable.setOnTouchListener(SwipeListener())
     }
+
+    private inner class SwipeListener(): View.OnTouchListener {
+        private val gestureDetector = GestureDetector(this@ListBreakdown, GestureListener())
+
+        override fun onTouch(v: View?, event: MotionEvent?): Boolean {
+            return gestureDetector.onTouchEvent(event)
+        }
+
+        private inner class GestureListener: GestureDetector.SimpleOnGestureListener() {
+            val SWIPE_THRESHOLD = 100
+            val SWIPE_VELOCITY_THRESHOLD = 100
+
+            override fun onDown(e: MotionEvent?): Boolean {
+                super.onDown(e)
+                return true
+            }
+
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent?, velocityX: Float, velocityY: Float): Boolean {
+                super.onFling(e1, e2, velocityX, velocityY)
+                var result = false
+
+                try {
+                    val diffY = e2!!.y - e1!!.y
+                    val diffX = e2.x - e1.x
+                    if (Math.abs(diffX) > Math.abs(diffY)) {
+                        if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
+                            if (diffX >  0) {
+                                onSwipeRight()
+                            } else {
+                                onSwipeLeft()
+                            }
+                            result = true
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                return result
+            }
+        }
+
+        fun onSwipeRight() {
+            if (month != "1") {
+                month = (month.toInt() - 1).toString()
+            }
+            progressBar.visibility = View.VISIBLE
+            this@ListBreakdown.overridePendingTransition(R.anim.r2l, R.anim.l2r)
+            GetItem().execute()
+        }
+
+        fun onSwipeLeft() {
+            if (month != "12") {
+                month = (month.toInt() + 1).toString()
+            }
+            progressBar.visibility = View.VISIBLE
+            this@ListBreakdown.overridePendingTransition(R.anim.l2r, R.anim.r2l)
+            GetItem().execute()
+        }
+    }
+
 
     /**
      * Called when an activity launched here (specifically, AccountPicker
@@ -68,12 +136,12 @@ class ListBreakdown: AppCompatActivity() {
         when (requestCode) {
             MainActivity.REQUEST_AUTHORIZATION_PUT -> {
                 if (resultCode == Activity.RESULT_OK) {
-                    GetItem().execute(month)
+                    GetItem().execute()
                 }
             }
             MainActivity.REQUEST_AUTHORIZATION_GET -> {
                 if (resultCode == Activity.RESULT_OK) {
-                    GetItem().execute(month)
+                    GetItem().execute()
                 }
             }
         }
@@ -87,16 +155,47 @@ class ListBreakdown: AppCompatActivity() {
         dialog.show()
     }
 
-    private inner class GetItem: AsyncTask<String, Void, List<List<Any>>>() {
+    private inner class GetItem: AsyncTask<Void, Void, List<List<Any>>>() {
         var mService: Sheets? = null
         var mLastErr: Exception? = null
 
-        override fun doInBackground(vararg month: String?): List<List<Any>> {
+        override fun onPreExecute() {
+            super.onPreExecute()
+            progressBar.visibility = View.VISIBLE
+
+            itemTable.removeAllViews()
+
+            val headerRow = TableRow(this@ListBreakdown)
+            headerRow.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+
+            headerRow.addView(getHeaderView(R.string.table_date))
+            headerRow.addView(getHeaderView(R.string.table_type))
+            headerRow.addView(getHeaderView(R.string.table_form))
+            headerRow.addView(getHeaderView(R.string.table_desc))
+            headerRow.addView(getHeaderView(R.string.table_amount))
+
+            itemTable.addView(headerRow)
+        }
+
+        private fun getHeaderView(resId: Int): View {
+            val view = TextView(this@ListBreakdown)
+            view.background = getDrawable(R.drawable.table_header)
+            view.textAlignment = View.TEXT_ALIGNMENT_CENTER
+            view.textSize = 16.5f
+            view.setPadding(3,3,3,3)
+            view.setTypeface(null, Typeface.BOLD)
+            view.setText(resId)
+            return view
+        }
+
+        override fun doInBackground(vararg params: Void?): List<List<Any>> {
             val transport = AndroidHttp.newCompatibleTransport()
             val jsonFactory = JacksonFactory.getDefaultInstance()
             mService = Sheets.Builder(transport, jsonFactory, mCredential)
                     .setApplicationName(MainActivity.APPLICATION_NAME)
                     .build()
+
+            itemTitle.text = month + "월"
 
             try {
                 return getData()
@@ -109,7 +208,7 @@ class ListBreakdown: AppCompatActivity() {
 
         private fun getData(): List<List<Any>> {
             val result = ArrayList<List<Any>>()
-            var range = itemTitle.text.toString() + "!a3:j"
+            var range = month + "월!a3:j"
 
             val response = mService!!.spreadsheets()
                     .values().get(SPREADSHEET_ID, range)
@@ -130,8 +229,10 @@ class ListBreakdown: AppCompatActivity() {
             super.onPostExecute(result)
 
             if (result != null) {
+                var i = 0
                 for (row in result) {
-                    appendRow(row)
+                    appendRow(row, i)
+                    i += 1
                 }
             }
 
@@ -157,7 +258,7 @@ class ListBreakdown: AppCompatActivity() {
             }
         }
 
-        private fun appendRow(row: List<Any>) {
+        private fun appendRow(row: List<Any>, index: Int) {
             val itemRow = TableRow(this@ListBreakdown)
             itemRow.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
 
@@ -204,6 +305,15 @@ class ListBreakdown: AppCompatActivity() {
                 amountView.text = row[5].toString()
             }
             itemRow.addView(amountView)
+
+            itemRow.setOnClickListener {
+                var data = row
+                data += (index + 3).toString()
+                var putTxIntent = Intent(this@ListBreakdown, PutTransaction::class.java)
+                putTxIntent.putExtra(MainActivity.INTENT_SPREADSHEET_ID, SPREADSHEET_ID)
+                putTxIntent.putExtra("value", data as Serializable)
+                startActivity(putTxIntent)
+            }
 
             itemTable.addView(itemRow)
         }

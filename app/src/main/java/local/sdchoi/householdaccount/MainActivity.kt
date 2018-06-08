@@ -21,6 +21,7 @@ import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccoun
 import com.google.api.client.util.ExponentialBackOff
 import com.google.api.services.sheets.v4.SheetsScopes
 import kotlinx.android.synthetic.main.activity_main.*
+import local.sdchoi.householdaccount.R.id.*
 import local.sdchoi.householdaccount.tool.ObjectSerializer
 import pub.devrel.easypermissions.EasyPermissions
 import java.io.Serializable
@@ -28,7 +29,7 @@ import java.util.*
 
 class MainActivity : AppCompatActivity() {
     lateinit var mCredentials: GoogleAccountCredential
-    var itemsMap = mapOf<String, String>()
+    private var sheetMap = mapOf<String, String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,10 +38,10 @@ class MainActivity : AppCompatActivity() {
         mCredentials = GoogleAccountCredential.usingOAuth2(applicationContext, SPREADSHEET_SCOPES)
                 .setBackOff(ExponentialBackOff())
 
-        fab.setOnClickListener {
+        addButton.setOnClickListener {
             // show alertdialog to add spreadsheet docs
             val dialog = AlertDialog.Builder(this)
-            val inflater = this.layoutInflater.inflate(R.layout.dialog_layout, null)
+            val inflater = this.layoutInflater.inflate(R.layout.dialog_add_sheet, null)
             dialog.setTitle("Add Spreadsheet")
                     .setView(inflater)
                     .setPositiveButton(R.string.docs_add, DialogInterface.OnClickListener(
@@ -57,7 +58,7 @@ class MainActivity : AppCompatActivity() {
             dialog.show()
         }
 
-        showSavedItems()
+        loadListFromPref()
 
         getPermissionAndChooseAccount()
     }
@@ -65,17 +66,42 @@ class MainActivity : AppCompatActivity() {
     /**
      * Show saved items on activity_main
      */
-    private fun showSavedItems() {
-        itemsMap = ObjectSerializer.deserialize(getPreferences(Context.MODE_PRIVATE)
+    private fun loadListFromPref() {
+        sheetMap = ObjectSerializer.deserialize(getPreferences(Context.MODE_PRIVATE)
                 .getString(PREF_SAVED_ITEMS, ObjectSerializer.serialize(emptyMap<String,String>() as Serializable)))
                  as Map<String, String>
-        if (itemsMap.isNotEmpty()) {
-            for (key in itemsMap.keys) {
+        if (sheetMap.isNotEmpty()) {
+            for ((key, value) in sheetMap) {
                 val childView = TextView(this)
                 childView.text = key
-                childView.setTextSize(TypedValue.COMPLEX_UNIT_SP,25f)
+                childView.textSize = 38f
+                childView.setBackgroundResource(R.drawable.text_bottom_line)
                 childView.setOnClickListener {
-                    switchToPutTransactionActivity(itemsMap.get(key)!!)
+                    switchToPutTransactionActivity(value)
+                }
+                childView.setOnLongClickListener {
+                    // show alertdialog to delete selected spreadsheet doc
+                    val dialog = AlertDialog.Builder(this)
+                    val inflater = this.layoutInflater.inflate(R.layout.dialog_del_sheet, null)
+                    dialog.setTitle("Remove Spreadsheet")
+                            .setView(inflater)
+                            .setPositiveButton("Yes", DialogInterface.OnClickListener(
+                                    fun (_: DialogInterface, _: Int) {
+                                        sheetMap = sheetMap.minus(key)
+                                        val editor = getPreferences(Context.MODE_PRIVATE).edit()
+                                        editor.putString(PREF_SAVED_ITEMS, ObjectSerializer.serialize(sheetMap as Serializable))
+                                        editor.commit()
+                                        itemLayout.removeView(it)
+                                    }
+                            ))
+                            .setNegativeButton("No", DialogInterface.OnClickListener(
+                                    fun (_: DialogInterface, _: Int) {
+                                        Toast.makeText(this, "Cancelled", Toast.LENGTH_LONG).show()
+                                    }
+                            ))
+                            .create()
+                    dialog.show()
+                    true
                 }
                 itemLayout.addView(childView)
             }
@@ -107,19 +133,19 @@ class MainActivity : AppCompatActivity() {
                     switchToPutTransactionActivity(spreadsheetId)
                 }
                 // Save name and spreadsheet ID in preference
-                itemsMap = itemsMap.plus(name to spreadsheetId)
+                sheetMap = sheetMap.plus(name to spreadsheetId)
                 val editor = getPreferences(Context.MODE_PRIVATE).edit()
-                editor.putString(PREF_SAVED_ITEMS, ObjectSerializer.serialize(itemsMap as Serializable))
+                editor.putString(PREF_SAVED_ITEMS, ObjectSerializer.serialize(sheetMap as Serializable))
                 editor.commit()
                 itemLayout.addView(childView)
                 Snackbar.make(itemLayout, "item added", Snackbar.LENGTH_LONG).show()
             } else {
                 Toast.makeText(this, "You put a wrong URL.", Toast.LENGTH_SHORT).show()
-                fab.performClick()
+                addButton.performClick()
             }
         } else {
             Toast.makeText(this, "Same name already exists", Toast.LENGTH_SHORT).show()
-            fab.performClick()
+            addButton.performClick()
         }
     }
 
@@ -196,7 +222,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun switchToPutTransactionActivity(spreadsheetId: String) {
         var putTxIntent = Intent(this, PutTransaction::class.java)
-        putTxIntent.putExtra(PREF_SPREADSHEET_ID, spreadsheetId)
+        putTxIntent.putExtra(INTENT_SPREADSHEET_ID, spreadsheetId)
         startActivity(putTxIntent)
     }
 
@@ -223,7 +249,6 @@ class MainActivity : AppCompatActivity() {
                 if (resultCode == Activity.RESULT_OK && data != null && data.extras != null) {
                     val accountName = data.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
                     if (accountName != null) {
-                        //val editor = getPreferences(Context.MODE_PRIVATE).edit()
                         val editor = getSharedPreferences(SHARED_PREF_NAME, Context.MODE_PRIVATE).edit()
                         editor.putString(PREF_ACCOUNT_NAME, accountName)
                         editor.commit()
@@ -246,7 +271,8 @@ class MainActivity : AppCompatActivity() {
 
         val SPREADSHEET_SCOPES = Arrays.asList(SheetsScopes.SPREADSHEETS)
         const val PREF_ACCOUNT_NAME: String = "accountName"
-        const val PREF_SPREADSHEET_ID: String = "sheetId"
         const val PREF_SAVED_ITEMS: String = "savedItems"
+
+        const val INTENT_SPREADSHEET_ID: String = "sheetId"
     }
 }

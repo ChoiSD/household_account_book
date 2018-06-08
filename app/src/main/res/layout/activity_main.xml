@@ -7,7 +7,7 @@
     tools:context=".MainActivity">
 
     <android.support.design.widget.FloatingActionButton
-        android:id="@+id/fab"
+        android:id="@+id/addButton"
         android:layout_width="36dp"
         android:layout_height="36dp"
         android:layout_gravity="end|bottom"

@@ -12,6 +12,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.ArrayAdapter
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.gms.common.GoogleApiAvailability
@@ -25,6 +26,7 @@ import com.google.api.services.sheets.v4.Sheets
 import com.google.api.services.sheets.v4.SheetsScopes
 import com.google.api.services.sheets.v4.model.ValueRange
 import kotlinx.android.synthetic.main.activity_put_transaction.*
+import local.sdchoi.householdaccount.R.id.*
 import local.sdchoi.householdaccount.tool.ObjectSerializer
 import java.io.Serializable
 import java.time.LocalDate
@@ -34,6 +36,7 @@ import kotlin.collections.ArrayList
 class PutTransaction: AppCompatActivity() {
     lateinit var mCredential: GoogleAccountCredential
     lateinit var SPREADSHEET_ID: String
+    var mIndex: Int? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,9 +56,54 @@ class PutTransaction: AppCompatActivity() {
                 .getString(MainActivity.PREF_ACCOUNT_NAME, null)
 
         // Get Spreadsheet ID
-        SPREADSHEET_ID = intent.getSerializableExtra(MainActivity.PREF_SPREADSHEET_ID) as String
+        SPREADSHEET_ID = intent.getStringExtra(MainActivity.INTENT_SPREADSHEET_ID)
 
         prepareSpinner()
+
+        updateFromList()
+    }
+
+    private fun updateFromList() {
+        var value: List<String>? = null
+        val input = intent.getSerializableExtra("value")
+        if (input != null) {
+            value = input as List<String>
+        }
+
+        if (value != null) {
+            val date = value[0]
+            val year = date.split(". ")[0]
+            val month = date.split(". ")[1]
+            val day = date.split(". ")[2]
+            val desc = value[1]
+            val type = value[2]
+            val form = value[3]
+            val amount: String
+            if (type == "수입") {
+                amount = value[4]
+            } else {
+                amount = value[5]
+            }
+            val detail = value[9]
+
+            yearText.setText(year)
+            monthText.setText(month)
+            dayText.setText(day)
+            descText.setText(desc)
+            amoutText.setText(amount)
+            detailDescText.setText(detail)
+            setSpinText(typeSpinner, type)
+            setSpinText(formSpinner, form)
+            mIndex = value[10].toInt()
+        }
+    }
+
+    private fun setSpinText(spinner: Spinner, text: String) {
+        for(i in 0..(spinner.adapter.count - 1)) {
+            if (spinner.adapter.getItem(i).toString().contains(text)) {
+                spinner.setSelection(i)
+            }
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -70,8 +118,17 @@ class PutTransaction: AppCompatActivity() {
                 R.id.breakdown -> {
                     // Switch to ListBreakdown activity
                    var listIntent = Intent(this, ListBreakdown::class.java)
-                    listIntent.putExtra(MainActivity.PREF_SPREADSHEET_ID, SPREADSHEET_ID)
+                    listIntent.putExtra(MainActivity.INTENT_SPREADSHEET_ID, SPREADSHEET_ID)
                     startActivity(listIntent)
+                }
+                R.id.refresh -> {
+                    // Get Type & Format data again
+                    val editor = getPreferences(Context.MODE_PRIVATE).edit()
+                    val serializedEmptyList = ObjectSerializer.serialize(emptyList<String>() as Serializable)
+                    editor.putString(PREF_TYPE_DATA, serializedEmptyList)
+                    editor.putString(PREF_FORM_DATA, serializedEmptyList)
+                    editor.commit()
+                    prepareSpinner()
                 }
             }
         }
@@ -146,6 +203,8 @@ class PutTransaction: AppCompatActivity() {
      * Prepare spinner's dropdown menu
      */
     private fun prepareSpinner() {
+        progressBar.visibility = View.VISIBLE
+
         val serializedEmptyList = ObjectSerializer.serialize(emptyList<String>() as Serializable)
         val typeData = ObjectSerializer.deserialize(
                 getPreferences(Context.MODE_PRIVATE).getString(PREF_TYPE_DATA, serializedEmptyList)
@@ -178,6 +237,8 @@ class PutTransaction: AppCompatActivity() {
                 }
             }
         }
+
+        progressBar.visibility = View.GONE
     }
 
     /**
@@ -253,6 +314,7 @@ class PutTransaction: AppCompatActivity() {
 
         override fun onPostExecute(result: Boolean?) {
             super.onPostExecute(result)
+
             if (result!!) {
                 putButton.isEnabled = true
                 yearText.text = null
@@ -292,15 +354,28 @@ class PutTransaction: AppCompatActivity() {
          * @params data List<String> : input data
          */
         private fun putData(data: List<String>): Boolean {
-            val range = getText(monthText) + "월!a1:j1"
-            val valueRange = ValueRange()
-                    .setRange(range)
-                    .setValues(Arrays.asList(data) as List<MutableList<Any>>?)
-            val request = mService!!.spreadsheets().values()
-                    .append(SPREADSHEET_ID, range, valueRange)
-                    .setInsertDataOption("INSERT_ROWS")
-                    .setValueInputOption("USER_ENTERED")
-            val response = request.execute()
+            if (mIndex == null) {
+                val range = getText(monthText) + "월!a1:j1"
+                val valueRange = ValueRange()
+                        .setRange(range)
+                        .setValues(Arrays.asList(data) as List<MutableList<Any>>?)
+                val request = mService!!.spreadsheets().values()
+                        .append(SPREADSHEET_ID, range, valueRange)
+                        .setInsertDataOption("INSERT_ROWS")
+                        .setValueInputOption("USER_ENTERED")
+                val response = request.execute()
+            } else {
+                val index = mIndex.toString()
+                val range = getText(monthText) + "월!a" + index + ":j" + index
+                val valueRange = ValueRange()
+                        .setRange(range)
+                        .setValues(Arrays.asList(data) as List<MutableList<Any>>?)
+                val request = mService!!.spreadsheets().values()
+                        .update(SPREADSHEET_ID, range, valueRange)
+                        .setValueInputOption("USER_ENTERED")
+                val response = request.execute()
+            }
+
             return true
         }
     }
